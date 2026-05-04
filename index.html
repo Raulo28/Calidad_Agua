@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Simulador de Calidad del Agua de Rio</title>
+<style>
+:root {
+  --verde:    #00c853;
+  --amarillo: #ffd600;
+  --rojo:     #d32f2f;
+  --azul:     #1565c0;
+  --azul-dark:#0a2540;
+  --sup:      #e3f2fd;
+  --borde:    #b0bec5;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Segoe UI', Arial, sans-serif;
+  background: linear-gradient(150deg, #0a2540 0%, #1565c0 60%, #42a5f5 100%);
+  min-height: 100vh;
+  padding: 22px 10px 50px;
+  color: #1a1a2e;
+}
+header { text-align: center; margin-bottom: 24px; }
+header h1 { font-size: clamp(1.1rem,3.5vw,1.8rem); color:#fff; font-weight:700; text-shadow:0 2px 10px rgba(0,0,0,.3); }
+header p  { color:#b3d9f7; font-size:.88rem; margin-top:5px; }
+
+.wrap { max-width:960px; margin:0 auto; display:grid; gap:16px; grid-template-columns:1fr 1fr; }
+@media(max-width:680px){ .wrap{ grid-template-columns:1fr; } }
+
+.card { background:rgba(255,255,255,.93); border-radius:14px; box-shadow:0 4px 22px rgba(10,37,64,.13); padding:18px 16px; }
+.card h2 { font-size:.92rem; font-weight:700; color:var(--azul-dark); margin-bottom:13px; padding-bottom:9px; border-bottom:2px solid var(--sup); display:flex; align-items:center; gap:7px; }
+
+/* SEMAFORO */
+.sem-card { grid-column:1/-1; display:flex; align-items:center; gap:22px; flex-wrap:wrap; }
+.sem-caja { background:#1c1c1c; border-radius:18px; padding:14px 20px; flex-shrink:0; display:flex; flex-direction:column; align-items:center; box-shadow:0 8px 28px rgba(0,0,0,.4); }
+.luz { width:58px; height:58px; border-radius:50%; margin:7px 0; opacity:.13; transition:opacity .5s, box-shadow .5s; }
+.luz.r { background:var(--rojo); }
+.luz.a { background:var(--amarillo); }
+.luz.v { background:var(--verde); }
+.luz.on { opacity:1; }
+.luz.r.on { box-shadow:0 0 28px 8px #ff5252; }
+.luz.a.on { box-shadow:0 0 28px 8px #ffd740; }
+.luz.v.on { box-shadow:0 0 28px 8px #69f0ae; }
+.sem-info { flex:1; min-width:190px; }
+.sem-info h2 { border:none; padding:0; margin-bottom:5px; }
+#estado-txt { font-size:1.35rem; font-weight:700; margin-bottom:5px; transition:color .4s; color:#888; }
+#estado-desc { font-size:.83rem; color:#444; line-height:1.5; background:var(--sup); border-radius:8px; padding:9px 12px; margin-top:6px; }
+.barra-ext { background:#e0e0e0; border-radius:20px; height:13px; overflow:hidden; margin-top:10px; }
+#barra { height:100%; width:0%; border-radius:20px; transition:width .6s, background .5s; background:var(--verde); }
+.riesgo-lbl { font-size:.76rem; color:#555; margin-top:6px; }
+.acciones { display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; }
+.btn-acc { border:none; border-radius:8px; padding:8px 14px; font-size:.8rem; font-weight:600; cursor:pointer; transition:opacity .15s, transform .1s; }
+.btn-acc:active { transform:scale(.97); }
+.btn-guardar { background:var(--azul); color:#fff; }
+.btn-guardar:hover { opacity:.88; }
+.btn-pdf { background:#fff; color:var(--azul-dark); border:2px solid var(--azul) !important; }
+.btn-pdf:hover { background:var(--sup); }
+
+/* ESCENAS */
+.escenas-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(145px,1fr)); gap:8px; }
+.btn-esc { border:2.5px solid transparent; border-radius:10px; padding:9px 10px; font-size:.78rem; font-weight:600; cursor:pointer; text-align:left; line-height:1.35; transition:transform .12s, box-shadow .12s; }
+.btn-esc:hover { transform:translateY(-2px); box-shadow:0 4px 12px rgba(0,0,0,.14); }
+.btn-esc:active { transform:scale(.97); }
+.tag { display:inline-block; font-size:.67rem; background:rgba(0,0,0,.13); border-radius:4px; padding:1px 5px; margin-top:3px; font-weight:400; }
+.acido    { background:#ffcdd2; color:#b71c1c; }
+.alcalino { background:#e1bee7; color:#4a148c; }
+.organico { background:#ffe0b2; color:#bf360c; }
+.nutriente{ background:#c8e6c9; color:#1b5e20; }
+.toxico   { background:#cfd8dc; color:#1c313a; }
+.sedimento{ background:#f5f5dc; color:#5d4037; }
+.delta    { background:var(--azul); color:#fff; grid-column:1/-1; font-size:.83rem !important; }
+.btn-reset-esc { grid-column:1/-1; border:2px solid var(--borde); background:#fff; border-radius:10px; padding:9px 10px; font-size:.78rem; font-weight:600; cursor:pointer; color:#555; transition:background .15s; }
+.btn-reset-esc:hover { background:#f5f5f5; }
+.btn-esc.activo { border-color:var(--azul-dark) !important; animation:pulso 1.4s infinite; }
+.delta.activo   { border-color:#fff !important; box-shadow:0 0 0 3px rgba(255,255,255,.35); }
+@keyframes pulso {
+  0%,100% { box-shadow:0 0 0 3px rgba(10,37,64,.18); }
+  50%      { box-shadow:0 0 0 6px rgba(10,37,64,.06); }
+}
+
+/* MODO */
+.modo-bar { display:flex; gap:8px; margin-bottom:13px; }
+.btn-modo { border:2px solid var(--borde); background:#fff; color:#555; border-radius:8px; padding:6px 13px; font-size:.78rem; font-weight:600; cursor:pointer; transition:all .15s; }
+.btn-modo:hover { background:var(--sup); }
+.btn-modo.activo { background:var(--azul-dark); color:#fff; border-color:var(--azul-dark); }
+.campo-titulo { width:100%; border:1.5px solid var(--borde); border-radius:8px; padding:7px 10px; font-size:.85rem; margin-bottom:12px; font-family:inherit; color:#1a1a2e; background:#fff; }
+.campo-titulo:focus { outline:none; border-color:var(--azul); }
+
+/* PARAMETROS */
+.params-lista { display:grid; gap:9px; }
+.p-row { display:flex; align-items:center; gap:8px; background:var(--sup); border-radius:9px; padding:8px 10px; transition:background .25s, opacity .25s; }
+.p-row.manual-on { background:#e8f4fd; border:1.5px solid #90caf9; }
+.p-row.excluido  { opacity:.38; }
+.p-label { flex:1; font-size:.78rem; font-weight:600; color:var(--azul-dark); min-width:100px; }
+.p-inst  { font-size:.66rem; color:#666; font-weight:400; display:block; margin-top:1px; }
+.p-row input[type=range] { flex:2; accent-color:var(--azul); cursor:pointer; min-width:0; }
+.p-row input[type=number] { width:62px; border:1.5px solid var(--borde); border-radius:6px; padding:4px 5px; font-size:.82rem; font-family:monospace; text-align:center; background:#fff; flex-shrink:0; }
+.p-row.manual-on input[type=number] { border-color:var(--azul); font-weight:700; }
+.p-unidad { font-size:.68rem; color:#888; width:40px; text-align:right; flex-shrink:0; }
+.p-dot { width:11px; height:11px; border-radius:50%; flex-shrink:0; background:#ccc; transition:background .35s; }
+.dot-ok   { background:var(--verde)    !important; }
+.dot-warn { background:var(--amarillo) !important; }
+.dot-mal  { background:var(--rojo)     !important; }
+.dot-nulo { background:#ccc            !important; }
+
+/* BOTON X por parametro */
+.btn-x {
+  display: none;
+  width: 24px; height: 24px; border-radius: 50%;
+  border: 1.5px solid #aaa; background: #fff;
+  font-size: .75rem; font-weight: 700;
+  cursor: pointer; color: #888; flex-shrink: 0;
+  align-items: center; justify-content: center;
+  transition: background .15s, border-color .15s, color .15s;
+  line-height: 1;
+}
+.btn-x:hover { background: #ffebee; border-color: var(--rojo); color: var(--rojo); }
+.btn-x.excluido { background: #eee; border-color: #ccc; color: #bbb; }
+.btn-x.excluido:hover { background: #e8f4fd; border-color: var(--azul); color: var(--azul); }
+
+/* HISTORIAL */
+.hist-card { grid-column:1/-1; }
+#hist-lista { display:flex; flex-direction:column; gap:6px; max-height:160px; overflow-y:auto; }
+.h-item { display:flex; align-items:center; gap:8px; font-size:.76rem; background:var(--sup); border-radius:7px; padding:6px 10px; font-family:monospace; }
+.h-dot  { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+.h-vacio{ color:#aaa; font-size:.8rem; text-align:center; padding:8px 0; }
+#hist-lista::-webkit-scrollbar{ width:4px; }
+#hist-lista::-webkit-scrollbar-thumb{ background:#b0bec5; border-radius:6px; }
+
+/* LEYENDA */
+.leyenda { grid-column:1/-1; display:flex; gap:14px; flex-wrap:wrap; justify-content:center; }
+.l-item  { display:flex; align-items:center; gap:6px; font-size:.79rem; color:#fff; }
+.l-dot   { width:12px; height:12px; border-radius:50%; }
+
+/* nota manual */
+.nota-manual { font-size:.72rem; color:#1565c0; background:#e3f2fd; border-radius:6px; padding:6px 10px; margin-bottom:10px; display:none; }
+.nota-manual.visible { display:block; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>&#128167; Simulador de Calidad del Agua de Rio</h1>
+  <p>Indicadores vinculados a la aparicion de cianobacterias y aptitud para consumo humano</p>
+</header>
+
+<div class="wrap">
+
+  <!-- SEMAFORO -->
+  <div class="card sem-card">
+    <div class="sem-caja">
+      <div class="luz r" id="lR"></div>
+      <div class="luz a" id="lA"></div>
+      <div class="luz v" id="lV"></div>
+    </div>
+    <div class="sem-info">
+      <h2>&#128678; Estado del agua</h2>
+      <div id="estado-txt">&#8212; Sin datos &#8212;</div>
+      <div id="estado-desc">Selecciona una escena o usa el modo Ingreso manual para cargar mediciones.</div>
+      <div class="barra-ext"><div id="barra"></div></div>
+      <div class="riesgo-lbl">Indice de riesgo: <strong id="riesgo-num">&#8212;</strong> / 100</div>
+      <div class="acciones">
+        <button class="btn-acc btn-guardar" onclick="guardar()">&#128190; Guardar medicion</button>
+        <button class="btn-acc btn-pdf"     onclick="exportarPDF()">&#128196; Descargar informe</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ESCENAS -->
+  <div class="card">
+    <h2>&#9879;&#65039; Escenas de contaminacion</h2>
+    <div class="escenas-grid" id="escenas-grid"></div>
+  </div>
+
+  <!-- PARAMETROS -->
+  <div class="card">
+    <h2>&#128300; Parametros</h2>
+    <div class="modo-bar">
+      <button class="btn-modo" id="bm-esc" onclick="setModo('escena')">&#128203; Valores de referencia</button>
+      <button class="btn-modo" id="bm-man" onclick="setModo('manual')">&#9999;&#65039; Ingreso manual</button>
+    </div>
+    <div class="nota-manual" id="nota-manual">
+      &#128161; Todos los campos estan activos. Usa el boton <strong>X</strong> para excluir un parametro que no hayas medido — no se contabilizara en el semaforo. Usa <strong>+</strong> para reactivarlo.
+    </div>
+    <input class="campo-titulo" id="campo-titulo" type="text" placeholder="Titulo / nombre de la medicion (para el informe)">
+    <div class="params-lista" id="params-lista"></div>
+  </div>
+
+  <!-- HISTORIAL -->
+  <div class="card hist-card">
+    <h2>&#128203; Registro de mediciones</h2>
+    <div id="hist-lista"><p class="h-vacio">Aun no hay mediciones guardadas.</p></div>
+  </div>
+
+  <!-- LEYENDA -->
+  <div class="leyenda">
+    <div class="l-item"><div class="l-dot" style="background:var(--verde)"></div> Apta para consumo</div>
+    <div class="l-item"><div class="l-dot" style="background:var(--amarillo)"></div> Requiere tratamiento</div>
+    <div class="l-item"><div class="l-dot" style="background:var(--rojo)"></div> No apta para consumo</div>
+    <div class="l-item"><div class="l-dot" style="background:#ccc"></div> No medido (excluido)</div>
+  </div>
+
+</div>
+
+<script>
+// ==============================================
+//  PARAMETROS
+// ==============================================
+var PARAMS = [
+  { id:'ph',           nombre:'pH',                   inst:'Peachimetro / tiras de pH',
+    min:0,   max:14,  paso:0.1, unidad:'',
+    evaluar: function(v){ return (v>=6.5&&v<=8.5)?'ok':((v>=5.5&&v<6.5)||(v>8.5&&v<=9.5))?'warn':'mal'; },
+    peso:20 },
+  { id:'oxigeno',      nombre:'Oxigeno Disuelto',      inst:'Oximetro / Metodo de Winkler',
+    min:0,   max:14,  paso:0.1, unidad:'mg/L',
+    evaluar: function(v){ return v>=6?'ok':v>=4?'warn':'mal'; },
+    peso:25 },
+  { id:'turbidez',     nombre:'Turbidez (Secchi)',      inst:'Disco de Secchi',
+    min:0,   max:5,   paso:0.05,unidad:'m',
+    evaluar: function(v){ return v>=2?'ok':v>=0.8?'warn':'mal'; },
+    peso:15 },
+  { id:'conductividad',nombre:'Conductividad',          inst:'Conductimetro',
+    min:0,   max:3000,paso:10,  unidad:'uS/cm',
+    evaluar: function(v){ return v<=500?'ok':v<=1000?'warn':'mal'; },
+    peso:15 },
+  { id:'sedimentos',   nombre:'Solidos Sedimentables',  inst:'Cono de Imhoff / filtracion',
+    min:0,   max:500, paso:5,   unidad:'mg/L',
+    evaluar: function(v){ return v<=50?'ok':v<=150?'warn':'mal'; },
+    peso:10 },
+  { id:'coliformes',   nombre:'Coliformes Totales',     inst:'Placa de Petri / Agar EMB',
+    min:0,   max:5000,paso:10,  unidad:'UFC/100mL',
+    evaluar: function(v){ return v<10?'ok':v<=200?'warn':'mal'; },
+    peso:15 },
+  { id:'fosfato',      nombre:'Fosfato',                inst:'Kit colorimetrico / espectrofotometro',
+    min:0,   max:200, paso:0.001,unidad:'mg/L',
+    evaluar: function(v){ return v<=30?'ok':v<=100?'warn':'mal'; },
+    peso:12 },
+  { id:'nitrato',      nombre:'Nitrato',                inst:'Kit colorimetrico / tiras reactivas',
+    min:0,   max:200, paso:0.1, unidad:'mg/L',
+    evaluar: function(v){ return v<=35.7?'ok':v<=45?'warn':'mal'; },
+    peso:13 },
+  { id:'solidos',      nombre:'Solidos en Suspension',  inst:'Filtracion por peso (gravimetria)',
+    min:0,   max:300, paso:1,   unidad:'mg/L',
+    evaluar: function(v){ return v<=35?'ok':v<=80?'warn':'mal'; },
+    peso:10 },
+  { id:'clorofila',    nombre:'Clorofila',              inst:'Espectrofotometro / fluorometro',
+    min:0,   max:200, paso:0.1, unidad:'ug/L',
+    evaluar: function(v){ return v<=15?'ok':v<=50?'warn':'mal'; },
+    peso:10 },
+  { id:'ecoli',        nombre:'E. Coli',                inst:'Placa de Petri / Agar EMB',
+    min:0,   max:1000,paso:1,   unidad:'UFC/100mL',
+    evaluar: function(v){ return v===0?'ok':v<=126?'warn':'mal'; },
+    peso:15 },
+];
+
+// ==============================================
+//  ESCENAS
+// ==============================================
+var ESCENAS = [
+  { id:'delta',  nombre:'Primera seccion de delta', clase:'delta',    efecto:'Valores reales medidos',
+    vals:{ ph:7.5, oxigeno:7.2, turbidez:1.4, conductividad:380, sedimentos:52, coliformes:180, fosfato:0.017, nitrato:52, solidos:52, clorofila:0, ecoli:140 } },
+  { id:'acid',   nombre:'Lluvia acida',             clase:'acido',    efecto:'pH muy bajo',
+    vals:{ ph:4.5, oxigeno:7, turbidez:2.5, conductividad:200, sedimentos:20, coliformes:0, fosfato:null, nitrato:null, solidos:null, clorofila:null, ecoli:null } },
+  { id:'deter',  nombre:'Detergentes',              clase:'alcalino', efecto:'pH alto, fosfatos',
+    vals:{ ph:9.2, oxigeno:6.5, turbidez:1.2, conductividad:450, sedimentos:40, coliformes:150, fosfato:18, nitrato:null, solidos:30, clorofila:null, ecoli:null } },
+  { id:'fert',   nombre:'Fertilizantes (NPK)',      clase:'nutriente',efecto:'Nitratos, fosfatos',
+    vals:{ ph:7.4, oxigeno:7, turbidez:1.8, conductividad:620, sedimentos:30, coliformes:100, fosfato:22, nitrato:48, solidos:40, clorofila:12, ecoli:null } },
+  { id:'cloac',  nombre:'Aguas residuales',         clase:'organico', efecto:'O2 bajo, bacterias',
+    vals:{ ph:8.0, oxigeno:2.5, turbidez:0.6, conductividad:800, sedimentos:180, coliformes:1200, fosfato:30, nitrato:55, solidos:120, clorofila:8, ecoli:350 } },
+  { id:'ind',    nombre:'Efluente industrial',      clase:'toxico',   efecto:'Conductividad alta',
+    vals:{ ph:5.0, oxigeno:4, turbidez:0.9, conductividad:1800, sedimentos:90, coliformes:50, fosfato:5, nitrato:null, solidos:80, clorofila:null, ecoli:null } },
+  { id:'eros',   nombre:'Erosion de suelos',        clase:'sedimento',efecto:'Sedimentos altos',
+    vals:{ ph:7.2, oxigeno:7, turbidez:0.5, conductividad:300, sedimentos:280, coliformes:20, fosfato:null, nitrato:null, solidos:180, clorofila:null, ecoli:null } },
+  { id:'cal',    nombre:'Cal (encalado)',            clase:'alcalino', efecto:'pH levemente alto',
+    vals:{ ph:8.8, oxigeno:8, turbidez:2.8, conductividad:320, sedimentos:15, coliformes:0, fosfato:null, nitrato:null, solidos:null, clorofila:null, ecoli:null } },
+  { id:'vinaza', nombre:'Vinaza (agroindustria)',   clase:'organico', efecto:'O2 muy bajo, pH bajo',
+    vals:{ ph:3.8, oxigeno:1.0, turbidez:0.4, conductividad:700, sedimentos:200, coliformes:600, fosfato:8, nitrato:18, solidos:160, clorofila:null, ecoli:120 } },
+  { id:'lluvia', nombre:'Lluvia normal',            clase:'acido',    efecto:'Dilucion leve',
+    vals:{ ph:6.8, oxigeno:8.5, turbidez:2.2, conductividad:160, sedimentos:25, coliformes:5, fosfato:null, nitrato:null, solidos:20, clorofila:null, ecoli:null } },
+];
+
+// ==============================================
+//  ESTADO
+// ==============================================
+var modo         = 'escena';
+var escenaActiva = null;
+var vals         = {};
+var excluidos    = {};   // true = excluido manualmente con X
+
+PARAMS.forEach(function(p){ vals[p.id] = null; excluidos[p.id] = false; });
+
+// ==============================================
+//  RENDER ESCENAS
+// ==============================================
+function renderEscenas() {
+  var g = document.getElementById('escenas-grid');
+  g.innerHTML = '';
+  ESCENAS.forEach(function(e) {
+    var b = document.createElement('button');
+    b.id = 'esc_' + e.id;
+    b.className = 'btn-esc ' + e.clase;
+    b.innerHTML = e.nombre + '<br><span class="tag">' + e.efecto + '</span>';
+    b.onclick = function(){ cargarEscena(e); };
+    g.appendChild(b);
+  });
+  var r = document.createElement('button');
+  r.className = 'btn-reset-esc';
+  r.textContent = 'Limpiar / Restablecer';
+  r.onclick = limpiar;
+  g.appendChild(r);
+}
+
+// ==============================================
+//  CARGAR ESCENA
+// ==============================================
+function cargarEscena(e) {
+  if (escenaActiva === e.id) { limpiar(); return; }
+  ESCENAS.forEach(function(x){
+    var b = document.getElementById('esc_' + x.id);
+    if (b) b.classList.remove('activo');
+  });
+  escenaActiva = e.id;
+  document.getElementById('esc_' + e.id).classList.add('activo');
+
+  PARAMS.forEach(function(p){
+    vals[p.id]     = (e.vals[p.id] !== undefined) ? e.vals[p.id] : null;
+    excluidos[p.id] = false;
+  });
+
+  setModo('escena', false);
+  sincronizar();
+  calcular();
+}
+
+// ==============================================
+//  LIMPIAR
+// ==============================================
+function limpiar() {
+  PARAMS.forEach(function(p){ vals[p.id] = null; excluidos[p.id] = false; });
+  escenaActiva = null;
+  ESCENAS.forEach(function(x){
+    var b = document.getElementById('esc_' + x.id);
+    if (b) b.classList.remove('activo');
+  });
+  sincronizar();
+  calcular();
+}
+
+// ==============================================
+//  MODO
+// ==============================================
+function setModo(m, aplicarCambios) {
+  if (aplicarCambios === undefined) aplicarCambios = true;
+  modo = m;
+  document.getElementById('bm-esc').classList.toggle('activo', m === 'escena');
+  document.getElementById('bm-man').classList.toggle('activo', m === 'manual');
+  document.getElementById('nota-manual').classList.toggle('visible', m === 'manual');
+
+  if (m === 'manual' && aplicarCambios) {
+    // Deseleccionar escena
+    ESCENAS.forEach(function(x){
+      var b = document.getElementById('esc_' + x.id);
+      if (b) b.classList.remove('activo');
+    });
+    escenaActiva = null;
+    // Activar todos los campos nulos con valor 0
+    PARAMS.forEach(function(p){
+      if (vals[p.id] === null) vals[p.id] = 0;
+      excluidos[p.id] = false;
+    });
+  }
+
+  // Actualizar sliders y botones X
+  PARAMS.forEach(function(p){
+    var sl  = document.getElementById('sl_'   + p.id);
+    var xbt = document.getElementById('xbtn_' + p.id);
+    if (!sl) return;
+
+    if (m === 'manual') {
+      sl.disabled = excluidos[p.id];
+      sl.style.opacity = excluidos[p.id] ? '.3' : '1';
+      if (xbt) xbt.style.display = 'flex';
+    } else {
+      sl.disabled = true;
+      sl.style.opacity = '.35';
+      if (xbt) xbt.style.display = 'none';
+    }
+  });
+
+  // Colorear filas
+  document.querySelectorAll('.p-row').forEach(function(row){
+    if (m === 'manual') row.classList.add('manual-on');
+    else                row.classList.remove('manual-on');
+  });
+
+  sincronizar();
+  calcular();
+}
+
+// ==============================================
+//  RENDER PARAMETROS
+// ==============================================
+function renderParams() {
+  var lista = document.getElementById('params-lista');
+  lista.innerHTML = '';
+
+  PARAMS.forEach(function(p) {
+    var row = document.createElement('div');
+    row.className = 'p-row';
+    row.id = 'row_' + p.id;
+
+    row.innerHTML =
+      '<div class="p-label">' + p.nombre + '<span class="p-inst">' + p.inst + '</span></div>' +
+      '<input type="range" id="sl_' + p.id + '" min="' + p.min + '" max="' + p.max + '" step="' + p.paso + '" value="' + p.min + '" disabled style="opacity:.35">' +
+      '<input type="number" id="num_' + p.id + '" min="' + p.min + '" max="' + p.max + '" step="' + p.paso + '" placeholder="—" style="width:62px">' +
+      '<span class="p-unidad">' + p.unidad + '</span>' +
+      '<div class="p-dot dot-nulo" id="dot_' + p.id + '"></div>' +
+      '<button class="btn-x" id="xbtn_' + p.id + '" title="Excluir este parametro">X</button>';
+
+    lista.appendChild(row);
+
+    var sl  = document.getElementById('sl_'   + p.id);
+    var num = document.getElementById('num_'  + p.id);
+    var xbt = document.getElementById('xbtn_' + p.id);
+
+    // Slider
+    sl.addEventListener('input', function(){
+      if (modo !== 'manual' || excluidos[p.id]) return;
+      vals[p.id] = parseFloat(sl.value);
+      num.value  = fmt(vals[p.id], p);
+      actualizarFila(p);
+      calcular();
+    });
+
+    // Numero
+    num.addEventListener('change', function(){
+      var txt = num.value.trim();
+      if (txt === '' || txt === '-') {
+        // Vaciar = excluir si estamos en manual
+        if (modo === 'manual') {
+          excluirParam(p.id);
+        }
+        return;
+      }
+      var v = parseFloat(txt);
+      if (isNaN(v)) { num.value = vals[p.id] !== null ? fmt(vals[p.id], p) : ''; return; }
+      v = Math.min(p.max, Math.max(p.min, v));
+      vals[p.id]      = v;
+      excluidos[p.id] = false;
+      num.value = fmt(v, p);
+      sl.value  = v;
+      if (modo !== 'manual') setModo('manual', false);
+      actualizarFila(p);
+      calcular();
+    });
+
+    // Boton X
+    xbt.addEventListener('click', function(){
+      if (excluidos[p.id]) {
+        reactivarParam(p.id);
+      } else {
+        excluirParam(p.id);
+      }
+    });
+  });
+}
+
+// ==============================================
+//  EXCLUIR / REACTIVAR PARAMETRO
+// ==============================================
+function excluirParam(id) {
+  excluidos[id] = true;
+  vals[id]      = null;
+  var sl  = document.getElementById('sl_'   + id);
+  var num = document.getElementById('num_'  + id);
+  var xbt = document.getElementById('xbtn_' + id);
+  var row = document.getElementById('row_'  + id);
+  var dot = document.getElementById('dot_'  + id);
+  if (sl)  { sl.disabled = true; sl.style.opacity = '.3'; }
+  if (num) num.value = '';
+  if (xbt) { xbt.textContent = '+'; xbt.classList.add('excluido'); xbt.title = 'Incluir este parametro'; }
+  if (row) row.classList.add('excluido');
+  if (dot) dot.className = 'p-dot dot-nulo';
+  calcular();
+}
+
+function reactivarParam(id) {
+  var p = null;
+  for (var i=0; i<PARAMS.length; i++) { if (PARAMS[i].id === id) { p = PARAMS[i]; break; } }
+  if (!p) return;
+  excluidos[id] = false;
+  vals[id]      = 0;
+  var sl  = document.getElementById('sl_'   + id);
+  var num = document.getElementById('num_'  + id);
+  var xbt = document.getElementById('xbtn_' + id);
+  var row = document.getElementById('row_'  + id);
+  if (sl)  { sl.disabled = false; sl.style.opacity = '1'; sl.value = 0; }
+  if (num) num.value = '0';
+  if (xbt) { xbt.textContent = 'X'; xbt.classList.remove('excluido'); xbt.title = 'Excluir este parametro'; }
+  if (row) row.classList.remove('excluido');
+  actualizarFila(p);
+  calcular();
+}
+
+// ==============================================
+//  SINCRONIZAR
+// ==============================================
+function sincronizar() {
+  PARAMS.forEach(function(p){
+    var sl  = document.getElementById('sl_'   + p.id);
+    var num = document.getElementById('num_'  + p.id);
+    var xbt = document.getElementById('xbtn_' + p.id);
+    var row = document.getElementById('row_'  + p.id);
+    if (!sl || !num) return;
+
+    if (vals[p.id] === null || excluidos[p.id]) {
+      num.value = '';
+      sl.value  = p.min;
+      if (row) row.classList.add('excluido');
+      if (xbt) { xbt.textContent = '+'; xbt.classList.add('excluido'); }
+    } else {
+      num.value = fmt(vals[p.id], p);
+      sl.value  = Math.min(p.max, Math.max(p.min, vals[p.id]));
+      if (row) row.classList.remove('excluido');
+      if (xbt) { xbt.textContent = 'X'; xbt.classList.remove('excluido'); }
+    }
+
+    // Slider habilitado solo en manual y no excluido
+    if (modo === 'manual' && !excluidos[p.id]) {
+      sl.disabled = false; sl.style.opacity = '1';
+    } else {
+      sl.disabled = true; sl.style.opacity = '.35';
+    }
+
+    // Boton X visible solo en manual
+    if (xbt) xbt.style.display = (modo === 'manual') ? 'flex' : 'none';
+
+    // Colorear fila
+    if (modo === 'manual') row.classList.add('manual-on');
+    else                   row.classList.remove('manual-on');
+
+    actualizarFila(p);
+  });
+}
+
+function actualizarFila(p) {
+  var dot = document.getElementById('dot_' + p.id);
+  var row = document.getElementById('row_' + p.id);
+  if (!dot) return;
+  if (vals[p.id] === null || excluidos[p.id]) {
+    dot.className = 'p-dot dot-nulo';
+    if (row) row.classList.add('excluido');
+  } else {
+    var est = p.evaluar(vals[p.id]);
+    dot.className = 'p-dot ' + (est==='ok'?'dot-ok':est==='warn'?'dot-warn':'dot-mal');
+    if (row) row.classList.remove('excluido');
+  }
+}
+
+// ==============================================
+//  CALCULAR SEMAFORO
+// ==============================================
+function calcular() {
+  var malo    = 0;
+  var total   = 0;
+  var activos = 0;
+
+  PARAMS.forEach(function(p){
+    if (vals[p.id] === null || excluidos[p.id]) return;
+    activos++;
+    var est    = p.evaluar(vals[p.id]);
+    var contrib = est==='ok' ? 0 : est==='warn' ? 0.4 : 1;
+    malo  += contrib * p.peso;
+    total += p.peso;
+  });
+
+  var lR = document.getElementById('lR');
+  var lA = document.getElementById('lA');
+  var lV = document.getElementById('lV');
+  var et = document.getElementById('estado-txt');
+  var ed = document.getElementById('estado-desc');
+  var br = document.getElementById('barra');
+  var rn = document.getElementById('riesgo-num');
+
+  lR.classList.remove('on'); lA.classList.remove('on'); lV.classList.remove('on');
+
+  if (activos === 0) {
+    et.textContent = '— Sin datos —';
+    et.style.color = '#888';
+    ed.textContent = 'Selecciona una escena o usa el modo Ingreso manual para cargar mediciones.';
+    br.style.width = '0%'; br.style.background = '#ccc';
+    rn.textContent = '—';
+    return;
+  }
+
+  var riesgo = Math.round((malo / total) * 100);
+  rn.textContent = riesgo;
+  br.style.width = riesgo + '%';
+
+  if (riesgo <= 30) {
+    lV.classList.add('on');
+    et.textContent = 'Agua en buen estado';
+    et.style.color = '#2e7d32';
+    ed.textContent = 'Los parametros medidos estan dentro de rangos seguros. Bajo riesgo de floracion de cianobacterias.';
+    br.style.background = 'var(--verde)';
+  } else if (riesgo <= 65) {
+    lA.classList.add('on');
+    et.textContent = 'Agua con alteraciones';
+    et.style.color = '#e65100';
+    ed.textContent = 'Algunos parametros estan fuera del rango optimo. Requiere tratamiento especial. Riesgo moderado de cianobacterias.';
+    br.style.background = 'var(--amarillo)';
+  } else {
+    lR.classList.add('on');
+    et.textContent = 'Agua NO apta para consumo';
+    et.style.color = 'var(--rojo)';
+    ed.textContent = 'Multiples parametros en valores criticos. No debe usarse para consumo humano, riego ni recreacion. Alto riesgo de bloom de cianobacterias.';
+    br.style.background = 'var(--rojo)';
+  }
+}
+
+// ==============================================
+//  HISTORIAL
+// ==============================================
+var historial = [];
+function guardar() {
+  var rn = document.getElementById('riesgo-num').textContent;
+  if (rn === '—') { alert('No hay datos para guardar. Carga una escena o ingresa valores manualmente.'); return; }
+  var r      = parseInt(rn);
+  var color  = r<=30 ? '#00c853' : r<=65 ? '#ffd600' : '#d32f2f';
+  var estado = r<=30 ? 'VERDE'   : r<=65 ? 'AMARILLO' : 'ROJO';
+  var titulo = document.getElementById('campo-titulo').value.trim() || '(sin titulo)';
+  var hora   = new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
+  var modoLbl = modo === 'manual' ? '[Manual]' : '[Referencia]';
+  var resumen = PARAMS
+    .filter(function(p){ return vals[p.id]!==null && !excluidos[p.id]; })
+    .map(function(p){ return p.nombre+': '+fmt(vals[p.id],p)+p.unidad; })
+    .join(' · ');
+
+  historial.unshift({ hora:hora, titulo:titulo, color:color, estado:estado, resumen:resumen, riesgo:r, modoLbl:modoLbl });
+
+  var lista = document.getElementById('hist-lista');
+  lista.innerHTML = historial.map(function(h){
+    return '<div class="h-item">' +
+      '<div class="h-dot" style="background:'+h.color+'"></div>' +
+      '<span style="color:#555">'+h.hora+'</span>' +
+      '<span style="color:#888;font-size:.7rem">'+h.modoLbl+'</span>' +
+      '<span style="font-weight:700;color:'+h.color+'">'+h.estado+'</span>' +
+      '<span style="color:#333;font-weight:600">'+h.titulo+'</span>' +
+      '<span style="color:#888;font-size:.68rem;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+h.resumen+'</span>' +
+      '</div>';
+  }).join('');
+}
+
+// ==============================================
+//  PDF
+// ==============================================
+function exportarPDF() {
+  var rn        = document.getElementById('riesgo-num').textContent;
+  var estadoTxt = document.getElementById('estado-txt').textContent;
+  var descTxt   = document.getElementById('estado-desc').textContent;
+  var titulo    = document.getElementById('campo-titulo').value.trim() || 'Informe de calidad del agua';
+  var fechaHora = new Date().toLocaleString('es-AR',{dateStyle:'long',timeStyle:'short'});
+  var r         = rn==='—' ? null : parseInt(rn);
+  var colorE    = r===null?'#888':r<=30?'#2e7d32':r<=65?'#e65100':'#c62828';
+  var bgE       = r===null?'#f5f5f5':r<=30?'#e8f5e9':r<=65?'#fff8e1':'#ffebee';
+  var sem       = r===null?'—':r<=30?'VERDE':r<=65?'AMARILLO':'ROJO';
+  var escLabel  = escenaActiva ? (ESCENAS.filter(function(e){return e.id===escenaActiva;})[0]||{nombre:'—'}).nombre : 'Ingreso manual';
+
+  var filas = PARAMS.map(function(p){
+    if (vals[p.id]===null || excluidos[p.id]) {
+      return '<tr style="opacity:.4"><td>'+p.nombre+'</td><td style="text-align:center;color:#aaa">—</td><td style="color:#aaa;font-size:.8em">'+p.inst+'</td><td style="text-align:center;color:#ccc">no medido</td></tr>';
+    }
+    var est  = p.evaluar(vals[p.id]);
+    var ic   = est==='ok'?'OK':est==='warn'?'ADVERTENCIA':'CRITICO';
+    var bg   = est==='ok'?'#f1f8f1':est==='warn'?'#fffbea':'#fff1f1';
+    return '<tr style="background:'+bg+'"><td><strong>'+p.nombre+'</strong></td><td style="text-align:center;font-family:monospace">'+fmt(vals[p.id],p)+' '+p.unidad+'</td><td style="font-size:.8em;color:#555">'+p.inst+'</td><td style="text-align:center;font-weight:700">'+ic+'</td></tr>';
+  }).join('');
+
+  var histFilas = historial.length
+    ? historial.map(function(h){ return '<tr><td>'+h.hora+'</td><td>'+h.modoLbl+'</td><td style="font-weight:700;color:'+h.color+'">'+h.estado+'</td><td>'+h.titulo+'</td><td style="font-size:.75em;color:#555">'+h.resumen+'</td></tr>'; }).join('')
+    : '<tr><td colspan="5" style="color:#aaa;text-align:center">Sin mediciones guardadas</td></tr>';
+
+  var html = '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>'+titulo+'</title>' +
+    '<style>body{font-family:Arial,sans-serif;padding:28px;color:#1a1a2e;font-size:13px}' +
+    'h1{color:#0a2540;font-size:1.35rem;margin-bottom:2px}.sub{color:#777;font-size:.83rem;margin-bottom:18px}' +
+    '.box{background:'+bgE+';border-left:6px solid '+colorE+';border-radius:7px;padding:13px 17px;margin-bottom:18px}' +
+    '.box h2{color:'+colorE+';margin:0 0 4px;font-size:1.08rem}.box p{margin:3px 0;color:#444;line-height:1.5}' +
+    'table{width:100%;border-collapse:collapse;margin-bottom:22px}' +
+    'th{background:#0a2540;color:#fff;padding:8px 10px;text-align:left;font-size:.8rem}' +
+    'td{padding:6px 10px;border-bottom:1px solid #e8e8e8}' +
+    'h3{color:#0a2540;border-bottom:2px solid #e3f2fd;padding-bottom:5px;margin-bottom:9px}' +
+    '.foot{font-size:.72rem;color:#aaa;border-top:1px solid #eee;padding-top:10px;margin-top:24px}' +
+    '@media print{body{padding:14px}}</style></head><body>' +
+    '<h1>' + titulo + '</h1>' +
+    '<p class="sub">Escena/Modo: <strong>' + escLabel + '</strong> — Generado el ' + fechaHora + '</p>' +
+    '<div class="box"><h2>' + sem + ' — ' + estadoTxt + '</h2><p>' + descTxt + '</p><p>Indice de riesgo: <strong>' + rn + ' / 100</strong></p></div>' +
+    '<h3>Parametros medidos</h3>' +
+    '<table><thead><tr><th>Parametro</th><th style="text-align:center">Valor</th><th>Instrumento</th><th style="text-align:center">Estado</th></tr></thead><tbody>' + filas + '</tbody></table>' +
+    '<h3>Historial de mediciones</h3>' +
+    '<table><thead><tr><th>Hora</th><th>Modo</th><th>Estado</th><th>Titulo</th><th>Resumen</th></tr></thead><tbody>' + histFilas + '</tbody></table>' +
+    '<div class="foot">Simulador educativo — Valores de referencia: OMS y normativa argentina vigente.</div>' +
+    '<script>window.onload=function(){window.print();}<\/script></body></html>';
+
+  var blob = new Blob([html],{type:'text/html;charset=utf-8'});
+  var win  = window.open(URL.createObjectURL(blob),'_blank');
+  if (!win) alert('El navegador bloqueo la ventana. Permitila para ver el informe.');
+}
+
+// ==============================================
+//  UTILIDADES
+// ==============================================
+function fmt(v, p) {
+  if (v === null) return '';
+  var dec = p.paso < 0.01 ? 3 : p.paso < 1 ? 1 : 0;
+  return parseFloat(v).toFixed(dec);
+}
+
+// ==============================================
+//  INICIO
+// ==============================================
+renderEscenas();
+renderParams();
+setModo('escena', false);
+calcular();
+</script>
+</body>
+</html>
