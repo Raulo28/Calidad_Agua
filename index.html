@@ -262,11 +262,11 @@ var ESCENAS = [
   { id:'delta',  nombre:'Primera seccion de delta', clase:'delta',    efecto:'Valores reales medidos',
     vals:{ ph:7.5, oxigeno:7.2, turbidez:1.4, conductividad:380, sedimentos:52, coliformes:180, fosfato:0.017, nitrato:52, solidos:52, clorofila:0, ecoli:140 } },
   { id:'acid',   nombre:'Lluvia acida',             clase:'acido',    efecto:'pH muy bajo',
-    vals:{ ph:4.5, oxigeno:7, turbidez:2.5, conductividad:200, sedimentos:20, coliformes:0, fosfato:null, nitrato:null, solidos:null, clorofila:null, ecoli:null } },
+    vals:{ ph:4.5, oxigeno:4.5, turbidez:1.8, conductividad:280, sedimentos:35, coliformes:null, fosfato:null, nitrato:null, solidos:null, clorofila:null, ecoli:null } },
   { id:'deter',  nombre:'Detergentes',              clase:'alcalino', efecto:'pH alto, fosfatos',
-    vals:{ ph:9.2, oxigeno:6.5, turbidez:1.2, conductividad:450, sedimentos:40, coliformes:150, fosfato:18, nitrato:null, solidos:30, clorofila:null, ecoli:null } },
+    vals:{ ph:9.8, oxigeno:4.8, turbidez:0.9, conductividad:680, sedimentos:70, coliformes:280, fosfato:42, nitrato:null, solidos:65, clorofila:null, ecoli:80 } },
   { id:'fert',   nombre:'Fertilizantes (NPK)',      clase:'nutriente',efecto:'Nitratos, fosfatos',
-    vals:{ ph:7.4, oxigeno:7, turbidez:1.8, conductividad:620, sedimentos:30, coliformes:100, fosfato:22, nitrato:48, solidos:40, clorofila:12, ecoli:null } },
+    vals:{ ph:7.6, oxigeno:5.5, turbidez:1.2, conductividad:720, sedimentos:60, coliformes:180, fosfato:45, nitrato:58, solidos:55, clorofila:18, ecoli:null } },
   { id:'cloac',  nombre:'Aguas residuales',         clase:'organico', efecto:'O2 bajo, bacterias',
     vals:{ ph:8.0, oxigeno:2.5, turbidez:0.6, conductividad:800, sedimentos:180, coliformes:1200, fosfato:30, nitrato:55, solidos:120, clorofila:8, ecoli:350 } },
   { id:'ind',    nombre:'Efluente industrial',      clase:'toxico',   efecto:'Conductividad alta',
@@ -414,7 +414,7 @@ function renderParams() {
     row.innerHTML =
       '<div class="p-label">' + p.nombre + '<span class="p-inst">' + p.inst + '</span></div>' +
       '<input type="range" id="sl_' + p.id + '" min="' + p.min + '" max="' + p.max + '" step="' + p.paso + '" value="' + p.min + '" disabled style="opacity:.35">' +
-      '<input type="number" id="num_' + p.id + '" min="' + p.min + '" max="' + p.max + '" step="' + p.paso + '" placeholder="—" style="width:62px">' +
+      '<input type="text" inputmode="decimal" id="num_' + p.id + '" placeholder="—" style="width:62px">' +
       '<span class="p-unidad">' + p.unidad + '</span>' +
       '<div class="p-dot dot-nulo" id="dot_' + p.id + '"></div>' +
       '<button class="btn-x" id="xbtn_' + p.id + '" title="Excluir este parametro">X</button>';
@@ -444,7 +444,7 @@ function renderParams() {
         }
         return;
       }
-      var v = parseFloat(txt);
+      var v = parsearNum(txt);
       if (isNaN(v)) { num.value = vals[p.id] !== null ? fmt(vals[p.id], p) : ''; return; }
       v = Math.min(p.max, Math.max(p.min, v));
       vals[p.id]      = v;
@@ -714,7 +714,12 @@ function exportarPDF() {
 function fmt(v, p) {
   if (v === null) return '';
   var dec = p.paso < 0.01 ? 3 : p.paso < 1 ? 1 : 0;
-  return parseFloat(v).toFixed(dec);
+  return parseFloat(v).toFixed(dec).replace('.', ',');
+}
+
+function parsearNum(txt) {
+  if (!txt) return NaN;
+  return parseFloat(String(txt).replace(',', '.'));
 }
 
 // ==============================================
